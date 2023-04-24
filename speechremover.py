@@ -44,9 +44,60 @@ def timestamp_to_index(audio_ndarray: np.ndarray, audio_samplerate: int, timesta
     # Compute the offset from the beginning of the audio_ndarray, which is more
     # accurately called a "sample array," where each entry in the numpy array is a
     # sample.
-    offset = seconds*audio_samplerate + (millis/1000)*audio_samplerate
+    offset = int(seconds*audio_samplerate + (millis/1000)*audio_samplerate)
 
     return offset
+
+def get_num_samples_from_timestamps(start_timestamp: str, end_timestamp: str) -> int:
+    """Function that returns the number of samples covered by a word, provided its
+    timestamps as strs.
+
+    Parameters
+    ----------
+    start_timestamp: str
+        The starting timestamp from the audio that you want the corresponding sample
+        of. This should be provided in formation: "s.ms"
+
+    end_timestamp: str
+        The ending timestamp from the audio that you want the corresponding sample
+        of. This should be provided in formation: "s.ms"
+
+    Returns
+    -------
+    The integer number of audio sample values that correspond with this word.
+    """
+    return timestamp_to_index(end_timestamp) - timestamp_to_index(start_timestamp)
+
+def generate_1000hz_bleep(num_samples: int, sample_rate: int) -> np.ndarray:
+    """Function that generates a 1000 Hz sine wave that spans the number of samples
+    you provide. 1000 Hz chosen, as this is the most commonly used frequency for
+    profanity censoring sounds. Note that the audio generated has only a 16-bit
+    sample depth.
+
+    Parameters
+    ----------
+    num_samples: str
+        The number of samples this sine wave will span / be comprised of.
+    sample_rate: int
+        The number of samples per second.
+    
+    Returns
+    ----------
+    An ndarray of length num_samples whose values create a 1000 Hz sine wave.
+    """
+    
+    duration_s = num_samples/sample_rate
+    t = np.linspace(0, duration_s, num_samples, False)
+    note = np.sin(1000 * t * 2 * np.pi)
+    # Ensure that highest value is in 16-bit range
+    audio:np.ndarray = note * (2**15 - 1) / np.max(np.abs(note))
+    # Convert to 16-bit data
+    audio = audio.astype(np.int16)
+    return audio
+
+def generate_silence(num_samples: int) -> np.ndarray:
+    """Returns blank filler audio."""
+    return np.zeros(num_samples).astype(np.int16)
 
 if __name__ == "__main__":
     seconds, millis = convert_timestamp("32.88")
