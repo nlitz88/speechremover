@@ -1,8 +1,17 @@
 import whisper
+import time
 
 model = whisper.load_model("tiny.en")
-audio = whisper.load_audio(r"T:\2021-12-23 09-55-41.mkv")
+short_audio_path = r"C:\Users\nlitz88\Documents\Sound recordings\short_audio.m4a"
+audio_path = r"T:\2021-12-23 09-55-41.mkv"
+audio_load_start = time.time()
+audio = whisper.load_audio(audio_path)
+audio_load_end = time.time()
+print(f"It took {audio_load_end-audio_load_start}s to load input audio.")
+transcribe_start = time.time()
 results = model.transcribe(audio, word_timestamps=True)
+transcribe_end = time.time()
+print(f"It took {transcribe_end - transcribe_start} to transcribe the size {len(audio)} audio.")
 print(results)
 
 segments = results["segments"]
