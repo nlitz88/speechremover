@@ -16,7 +16,14 @@ def convert_timestamp(timestamp: str):
     the first value is the number of seconds, and the second value is the number of
     milliseconds. Returns Tuple(int, int)"""
     seconds, millis = timestamp.split(".")
+    print(f"timestamp: {timestamp}")
+    print(f"seconds: {seconds}, millis: {millis}")
     return (int(seconds), int(millis))
+
+def convert_timestamp(timestamp: float):
+    """Function that converts a floating point timestamp to a tuple, where the first
+    vialue is seconds and the second value is milliseconds. """
+    return (int(timestamp), int((timestamp*1000)%1000))
 
 def timestamp_to_index(audio_samplerate: int, timestamp: str) -> int:
     """Function that takes a timestamp from a provided audio array and returns the
@@ -66,6 +73,8 @@ def get_num_samples_from_timestamps(audio_samplerate: int, start_timestamp: str,
     -------
     The integer number of audio sample values that correspond with this word.
     """
+    print(f"Offset from end timestamp == {timestamp_to_index(audio_samplerate, end_timestamp)}")
+    print(f"Offset from start timestamp == {timestamp_to_index(audio_samplerate, start_timestamp)}")
     return timestamp_to_index(audio_samplerate, end_timestamp) - timestamp_to_index(audio_samplerate, start_timestamp)
 
 def generate_1000hz_bleep(num_samples: int, sample_rate: int) -> np.ndarray:
@@ -110,10 +119,14 @@ def replace_audio_segment(audio_ndarray: np.ndarray, audio_samplerate: int, star
 
     return audio_ndarray
 
-def bleep_audio_segment(audio_ndarray: np.ndarray, start_timestamp: str, end_timestamp: str, sample_rate: int) -> np.ndarray:
-    """Shortcut function to call without having to generate your own replacement signal."""
-    bleep = generate_1000hz_bleep(get_num_samples_from_timestamps(audio_samplerate=sample_rate, start_timestamp=start_timestamp, end_timestamp=end_timestamp), sample_rate=sample_rate)
-    return replace_audio_segment(audio_ndarray, start_timestamp, end_timestamp, bleep)
+def bleep_audio_segment(audio_ndarray: np.ndarray, audio_samplerate: int, start_timestamp: str, end_timestamp: str) -> np.ndarray:
+    """Shortcut function to call without having to generate your own replacement
+    signal."""
+    
+    num_samples = get_num_samples_from_timestamps(audio_samplerate=audio_samplerate, start_timestamp=start_timestamp, end_timestamp=end_timestamp)
+    print(f"Num samples from timestamps start {start_timestamp} end {end_timestamp} == {num_samples}")
+    bleep = generate_1000hz_bleep(num_samples, sample_rate=audio_samplerate)
+    return replace_audio_segment(audio_ndarray=audio_ndarray, audio_samplerate=audio_samplerate, start_timestamp=start_timestamp, end_timestamp=end_timestamp, replacement_audio=bleep)
 
 def replace_audio_segments(audio_ndarray: np.ndarray, audio_samplerate:int, segment_times: list, replacement_tones: list) -> np.ndarray:
     """Basically calls the above replace audio functions but multiple times across an
@@ -130,7 +143,8 @@ def bleep_audio_segments(audio_ndarray: np.ndarray, audio_samplerate: int, segme
     segments with a 1000Hz bleep tone."""
 
     for start_timestamp, end_timestamp in segment_times:
-        audio_ndarray = bleep_audio_segment(audio_ndarray, start_timestamp, end_timestamp, audio_samplerate)
+        print(f"start time: {start_timestamp}, end time: {end_timestamp}")
+        audio_ndarray = bleep_audio_segment(audio_ndarray=audio_ndarray, audio_samplerate=audio_samplerate, start_timestamp=start_timestamp, end_timestamp=end_timestamp)
     return audio_ndarray
 
 def censor_blacklisted(audio: np.ndarray, audio_samplerate: np.ndarray, blacklist: list) -> np.ndarray:
@@ -158,18 +172,30 @@ def censor_blacklisted(audio: np.ndarray, audio_samplerate: np.ndarray, blacklis
     model = whisper.load_model("tiny.en")
     results = model.transcribe(audio, word_timestamps=True)
 
+    print("Transcription results:")
+    segments = results["segments"]
+    for segment in segments:
+        print(f"ID: {segment['id']}\nStart: {segment['start']}, End: {segment['end']}\nText: {segment['text']}\nNoSpeechProb: {segment['no_speech_prob']}\n")
+        formatted_words = [f"\t{segment['words'][i]['word']}: Start: {segment['words'][i]['start']}, End: {segment['words'][i]['end']}" for i in range(len(segment["words"]))]
+        for word in formatted_words:
+            print(word)
+
     # Parse results for blacklisted words. Append their start and end timestamps as
     # tuples as you find them.
     blacklisted_segment_times = []
     segments = results["segments"]
     for segment in segments:
         for word_dict in segment["words"]:
-            word = word_dict["word"]
+            word = word_dict["word"].lower().strip()
             if word in blacklist:
-                blacklisted_segment_times.append((word_dict["start"], word_dict["end"]))
+                blacklisted_segment_times.append((str(word_dict["start"]), str(word_dict["end"])))
+    
+    print(f"\nBlacklisted word times: ")
+    for blacklisted_time in blacklisted_segment_times:
+        print(blacklisted_time)
     
     # Now, pass that list onto another function to remove it from the original audio.
-    audio = bleep_audio_segments(audio, audio_samplerate, blacklisted_segment_times)
+    audio = bleep_audio_segments(audio_ndarray=audio, audio_samplerate=audio_samplerate, segment_times=blacklisted_segment_times)
     return audio
 
 def remove_speech():
