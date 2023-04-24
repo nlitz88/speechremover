@@ -124,7 +124,7 @@ def bleep_audio_segments(audio_ndarray: np.ndarray, audio_samplerate: int, segme
     segments with a 1000Hz bleep tone."""
 
     for start_timestamp, end_timestamp in segment_times:
-        print(f"Censoring word starting at {start_timestamp} and ending at {end_timestamp}")
+        print(f"\tCensoring word starting at {start_timestamp} and ending at {end_timestamp}")
         audio_ndarray = bleep_audio_segment(audio_ndarray=audio_ndarray, audio_samplerate=audio_samplerate, start_timestamp=start_timestamp, end_timestamp=end_timestamp)
     return audio_ndarray
 
@@ -149,6 +149,7 @@ def censor_blacklisted(audio: np.ndarray, audio_samplerate: np.ndarray, blacklis
     "bleeped out."
     """
 
+    print("Beginning transcription process on audio")
     # First, run audio ndarray through whisper to get transcription.
     model = whisper.load_model("tiny.en")
     results = model.transcribe(audio, word_timestamps=True)
@@ -160,7 +161,9 @@ def censor_blacklisted(audio: np.ndarray, audio_samplerate: np.ndarray, blacklis
         formatted_words = [f"\t{segment['words'][i]['word']}: Start: {segment['words'][i]['start']}, End: {segment['words'][i]['end']}" for i in range(len(segment["words"]))]
         for word in formatted_words:
             print(word)
+    print()
 
+    print("Searching for blacklisted words")
     # Parse results for blacklisted words. Append their start and end timestamps as
     # tuples as you find them.
     blacklisted_segment_times = []
@@ -169,14 +172,14 @@ def censor_blacklisted(audio: np.ndarray, audio_samplerate: np.ndarray, blacklis
         for word_dict in segment["words"]:
             word = word_dict["word"].lower().strip()
             if word in blacklist:
+                print(f"\tFound blacklisted word \"{word}\" in audio at {word_dict['start']}-->{word_dict['end']}!")
                 blacklisted_segment_times.append((word_dict["start"], word_dict["end"]))
-    
-    print(f"\nBlacklisted word times: ")
-    for blacklisted_time in blacklisted_segment_times:
-        print(blacklisted_time)
+    print()
     
     # Now, pass that list onto another function to remove it from the original audio.
+    print("Censoring words in audio")
     audio = bleep_audio_segments(audio_ndarray=audio, audio_samplerate=audio_samplerate, segment_times=blacklisted_segment_times)
+    print()
     return audio
 
 def remove_speech():
