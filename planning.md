@@ -27,4 +27,7 @@ to be a roughly SOTA, transformer-based transcription model, and then some.
 - The "speech" or "not speech" decision should ideally be determined using some sort
   of deep learning approach, but I feel like webrtcvad is already a solid option, and
   that may already be using some sort of powerful model under the hood, anyways.
+
+- Okay, so it looks like whisper can transcribe audio data that we throw at it--as
+  well as give us time stamps and everything.
 - 
