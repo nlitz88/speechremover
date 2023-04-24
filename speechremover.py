@@ -99,7 +99,7 @@ def generate_silence(num_samples: int) -> np.ndarray:
     """Returns blank filler audio."""
     return np.zeros(num_samples).astype(np.int16)
 
-def replace_audio_between(audio_ndarray: np.ndarray, start_timestamp: str, end_timestamp: str, replacement_audio: np.ndarray) -> np.ndarray:
+def replace_audio_segment(audio_ndarray: np.ndarray, start_timestamp: str, end_timestamp: str, replacement_audio: np.ndarray) -> np.ndarray:
     """Takes in a numpy array of audio samples and replaces all values between the
     start and end with the provided replacement_audio."""
 
@@ -110,13 +110,57 @@ def replace_audio_between(audio_ndarray: np.ndarray, start_timestamp: str, end_t
 
     return audio_ndarray
 
-def replace_audio_with_1000hz_bleep(audio_ndarray: np.ndarray, start_timestamp: str, end_timestamp: str, sample_rate: int) -> np.ndarray:
+def bleep_audio_segment(audio_ndarray: np.ndarray, start_timestamp: str, end_timestamp: str, sample_rate: int) -> np.ndarray:
     """Shortcut function to call without having to generate your own replacement signal."""
     bleep = generate_1000hz_bleep(get_num_samples_from_timestamps(start_timestamp=start_timestamp, end_timestamp=end_timestamp), sample_rate=sample_rate)
-    return replace_audio_between(audio_ndarray, start_timestamp, end_timestamp, bleep)
+    return replace_audio_segment(audio_ndarray, start_timestamp, end_timestamp, bleep)
 
-def remove_words():
+def replace_audio_segments(audio_ndarray: np.ndarray, segment_times: list, replacement_tones: list) -> np.ndarray:
+    """Basically calls the above replace audio functions but multiple times across an
+    array of start and stop times. Implemented this way such that the ndarray is
+    being operated on all at once so that it doesn't have to be moved in and out of
+    cache constantly."""
+
+    for i, start_timestamp, end_timestamp in enumerate(segment_times):
+        audio_ndarray = replace_audio_segment(audio_ndarray, start_timestamp, end_timestamp, replacement_tones[i])
+    return audio_ndarray
+
+def bleep_audio_segments(audio_ndarray: np.ndarray, segment_times: list, sample_rate: int) -> np.ndarray:
+    """Function that takes in a list of segment times and replaces the audio in those
+    segments with a 1000Hz bleep tone."""
+
+    for start_timestamp, end_timestamp in segment_times:
+        audio_ndarray = bleep_audio_segment(audio_ndarray, start_timestamp, end_timestamp, sample_rate)
+    return audio_ndarray
+
+def censor_blacklisted(audio: np.ndarray, blacklist: list) -> np.ndarray:
+    """Function that takes in an audio stream represented as an ndarray and "bleeps
+    out" portions of the audio that have been transcribed to be blacklisted words.
+    Returns the audio in the same form, but with some portions modified depending on
+    what words were found.
+    
+    Parameters
+    ----------
+    num_samples: str
+        The number of samples this sine wave will span / be comprised of.
+    sample_rate: int
+        The number of samples per second.
+    
+    Returns
+    ----------
+    An ndarray of length num_samples whose values create a 1000 Hz sine wave.
+    """
+    """
+
     return
+
+def remove_blacklisted():
+    pass
+
+def remove_speech():
+    """More general function that looks for segments from whisper that are classified
+    as speech and mutes the entire audio sequence during those times."""
+    pass
 
 if __name__ == "__main__":
     seconds, millis = convert_timestamp("32.88")
