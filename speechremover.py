@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Tuple
+import whisper
 
 # class AudioChunk:
 
@@ -15,15 +16,12 @@ def convert_timestamp(timestamp: str):
     seconds, millis = timestamp.split(".")
     return (int(seconds), int(millis))
 
-def timestamp_to_index(audio_ndarray: np.ndarray, audio_samplerate: int, timestamp: str) -> int:
+def timestamp_to_index(audio_samplerate: int, timestamp: str) -> int:
     """Function that takes a timestamp from a provided audio array and returns the
     index of the sample that timestamp corresponds to. 
     
     Parameters
     ----------
-    audio_ndarray: np.ndarray
-        The audio data array that your timestamp comes from.
-
     audio_samplerate: int
         The sample rate of the audio array provided above. This is necessary to
         understand how time maps to the provided audio data.
@@ -48,7 +46,7 @@ def timestamp_to_index(audio_ndarray: np.ndarray, audio_samplerate: int, timesta
 
     return offset
 
-def get_num_samples_from_timestamps(start_timestamp: str, end_timestamp: str) -> int:
+def get_num_samples_from_timestamps(audio_samplerate: int, start_timestamp: str, end_timestamp: str) -> int:
     """Function that returns the number of samples covered by a word, provided its
     timestamps as strs.
 
@@ -66,7 +64,7 @@ def get_num_samples_from_timestamps(start_timestamp: str, end_timestamp: str) ->
     -------
     The integer number of audio sample values that correspond with this word.
     """
-    return timestamp_to_index(end_timestamp) - timestamp_to_index(start_timestamp)
+    return timestamp_to_index(audio_samplerate, end_timestamp) - timestamp_to_index(audio_samplerate, start_timestamp)
 
 def generate_1000hz_bleep(num_samples: int, sample_rate: int) -> np.ndarray:
     """Function that generates a 1000 Hz sine wave that spans the number of samples
@@ -99,12 +97,12 @@ def generate_silence(num_samples: int) -> np.ndarray:
     """Returns blank filler audio."""
     return np.zeros(num_samples).astype(np.int16)
 
-def replace_audio_segment(audio_ndarray: np.ndarray, start_timestamp: str, end_timestamp: str, replacement_audio: np.ndarray) -> np.ndarray:
+def replace_audio_segment(audio_ndarray: np.ndarray, audio_samplerate: int, start_timestamp: str, end_timestamp: str, replacement_audio: np.ndarray) -> np.ndarray:
     """Takes in a numpy array of audio samples and replaces all values between the
     start and end with the provided replacement_audio."""
 
-    start_index = timestamp_to_index(start_timestamp)
-    end_index = timestamp_to_index(end_timestamp)
+    start_index = timestamp_to_index(audio_samplerate, start_timestamp)
+    end_index = timestamp_to_index(audio_samplerate, end_timestamp)
     replace_indices = np.arange(start=start_index, stop=end_index, step=1)
     audio_ndarray[replace_indices] = replacement_audio
 
@@ -112,28 +110,28 @@ def replace_audio_segment(audio_ndarray: np.ndarray, start_timestamp: str, end_t
 
 def bleep_audio_segment(audio_ndarray: np.ndarray, start_timestamp: str, end_timestamp: str, sample_rate: int) -> np.ndarray:
     """Shortcut function to call without having to generate your own replacement signal."""
-    bleep = generate_1000hz_bleep(get_num_samples_from_timestamps(start_timestamp=start_timestamp, end_timestamp=end_timestamp), sample_rate=sample_rate)
+    bleep = generate_1000hz_bleep(get_num_samples_from_timestamps(audio_samplerate=sample_rate, start_timestamp=start_timestamp, end_timestamp=end_timestamp), sample_rate=sample_rate)
     return replace_audio_segment(audio_ndarray, start_timestamp, end_timestamp, bleep)
 
-def replace_audio_segments(audio_ndarray: np.ndarray, segment_times: list, replacement_tones: list) -> np.ndarray:
+def replace_audio_segments(audio_ndarray: np.ndarray, audio_samplerate:int, segment_times: list, replacement_tones: list) -> np.ndarray:
     """Basically calls the above replace audio functions but multiple times across an
     array of start and stop times. Implemented this way such that the ndarray is
     being operated on all at once so that it doesn't have to be moved in and out of
     cache constantly."""
 
     for i, start_timestamp, end_timestamp in enumerate(segment_times):
-        audio_ndarray = replace_audio_segment(audio_ndarray, start_timestamp, end_timestamp, replacement_tones[i])
+        audio_ndarray = replace_audio_segment(audio_ndarray, audio_samplerate, start_timestamp, end_timestamp, replacement_tones[i])
     return audio_ndarray
 
-def bleep_audio_segments(audio_ndarray: np.ndarray, segment_times: list, sample_rate: int) -> np.ndarray:
+def bleep_audio_segments(audio_ndarray: np.ndarray, audio_samplerate: int, segment_times: list) -> np.ndarray:
     """Function that takes in a list of segment times and replaces the audio in those
     segments with a 1000Hz bleep tone."""
 
     for start_timestamp, end_timestamp in segment_times:
-        audio_ndarray = bleep_audio_segment(audio_ndarray, start_timestamp, end_timestamp, sample_rate)
+        audio_ndarray = bleep_audio_segment(audio_ndarray, start_timestamp, end_timestamp, audio_samplerate)
     return audio_ndarray
 
-def censor_blacklisted(audio: np.ndarray, blacklist: list) -> np.ndarray:
+def censor_blacklisted(audio: np.ndarray, audio_samplerate: np.ndarray, blacklist: list) -> np.ndarray:
     """Function that takes in an audio stream represented as an ndarray and "bleeps
     out" portions of the audio that have been transcribed to be blacklisted words.
     Returns the audio in the same form, but with some portions modified depending on
@@ -141,21 +139,36 @@ def censor_blacklisted(audio: np.ndarray, blacklist: list) -> np.ndarray:
     
     Parameters
     ----------
-    num_samples: str
-        The number of samples this sine wave will span / be comprised of.
-    sample_rate: int
-        The number of samples per second.
+    audio: np.ndarray
+        Your audio data represented as a numpy ndarray, where each entry is a sample.
+    audio_samplerate:
+        The rate the provided audio was sampled at.
+    blacklist: List(str)
+        List of words that should be censored/removed/replaced in the audio.
     
     Returns
     ----------
-    An ndarray of length num_samples whose values create a 1000 Hz sine wave.
-    """
+    An ndarray of the provided audio with regions corresponding to blacklisted words
+    "bleeped out."
     """
 
-    return
+    # First, run audio ndarray through whisper to get transcription.
+    model = whisper.load_model("tiny.en")
+    results = model.transcribe(audio, word_timestamps=True)
 
-def remove_blacklisted():
-    pass
+    # Parse results for blacklisted words. Append their start and end timestamps as
+    # tuples as you find them.
+    blacklisted_segment_times = []
+    segments = results["segments"]
+    for segment in segments:
+        for word_dict in segment["words"]:
+            word = word_dict["word"]
+            if word in blacklist:
+                blacklisted_segment_times.append((word_dict["start"], word_dict["end"]))
+    
+    # Now, pass that list onto another function to remove it from the original audio.
+    audio = bleep_audio_segments(audio, audio_samplerate, blacklisted_segment_times)
+    return audio
 
 def remove_speech():
     """More general function that looks for segments from whisper that are classified
@@ -163,5 +176,9 @@ def remove_speech():
     pass
 
 if __name__ == "__main__":
+
+    blacklist = ["test", "andre", "nate", "laptop", "audio"]
+    
+
     seconds, millis = convert_timestamp("32.88")
     print(f"Seconds: {seconds}, Milliseconds: {millis}")
