@@ -4,28 +4,12 @@ import whisper
 import wavio
 import time
 
-# class AudioChunk:
-
-#     def __init__(self, audio_ndarray, audio_samplerate, audio_sampledepth):
-#         self.audio_ndarray = audio_ndarray
-#         self.audio_samplerate = audio_samplerate
-#         self.audio_sampledepth = audio_sampledepth
-
-def convert_timestamp(timestamp: str):
-    """Function that converts a string timestamp in format "ss.ms" to a tuple, where
-    the first value is the number of seconds, and the second value is the number of
-    milliseconds. Returns Tuple(int, int)"""
-    seconds, millis = timestamp.split(".")
-    print(f"timestamp: {timestamp}")
-    print(f"seconds: {seconds}, millis: {millis}")
-    return (int(seconds), int(millis))
-
 def convert_timestamp(timestamp: float):
     """Function that converts a floating point timestamp to a tuple, where the first
     vialue is seconds and the second value is milliseconds. """
     return (int(timestamp), int((timestamp*1000)%1000))
 
-def timestamp_to_index(audio_samplerate: int, timestamp: str) -> int:
+def timestamp_to_index(audio_samplerate: int, timestamp: float) -> int:
     """Function that takes a timestamp from a provided audio array and returns the
     index of the sample that timestamp corresponds to. 
     
@@ -35,7 +19,7 @@ def timestamp_to_index(audio_samplerate: int, timestamp: str) -> int:
         The sample rate of the audio array provided above. This is necessary to
         understand how time maps to the provided audio data.
     
-    timestamp: str
+    timestamp: float
         The timestamp from the audio that you want the corresponding sample of. Note:
         this should be provided in format "s.ms" s = # seconds and  = #
         milliseconds.
@@ -47,7 +31,7 @@ def timestamp_to_index(audio_samplerate: int, timestamp: str) -> int:
 
     # Convert the string timestamp to milliseconds.
     seconds, millis = convert_timestamp(timestamp=timestamp)
-    
+
     # Compute the offset from the beginning of the audio_ndarray, which is more
     # accurately called a "sample array," where each entry in the numpy array is a
     # sample.
@@ -55,17 +39,17 @@ def timestamp_to_index(audio_samplerate: int, timestamp: str) -> int:
 
     return offset
 
-def get_num_samples_from_timestamps(audio_samplerate: int, start_timestamp: str, end_timestamp: str) -> int:
+def get_num_samples_from_timestamps(audio_samplerate: int, start_timestamp: float, end_timestamp: float) -> int:
     """Function that returns the number of samples covered by a word, provided its
     timestamps as strs.
 
     Parameters
     ----------
-    start_timestamp: str
+    start_timestamp: float
         The starting timestamp from the audio that you want the corresponding sample
         of. This should be provided in formation: "s.ms"
 
-    end_timestamp: str
+    end_timestamp: float
         The ending timestamp from the audio that you want the corresponding sample
         of. This should be provided in formation: "s.ms"
 
@@ -73,8 +57,6 @@ def get_num_samples_from_timestamps(audio_samplerate: int, start_timestamp: str,
     -------
     The integer number of audio sample values that correspond with this word.
     """
-    print(f"Offset from end timestamp == {timestamp_to_index(audio_samplerate, end_timestamp)}")
-    print(f"Offset from start timestamp == {timestamp_to_index(audio_samplerate, start_timestamp)}")
     return timestamp_to_index(audio_samplerate, end_timestamp) - timestamp_to_index(audio_samplerate, start_timestamp)
 
 def generate_1000hz_bleep(num_samples: int, sample_rate: int) -> np.ndarray:
@@ -108,7 +90,7 @@ def generate_silence(num_samples: int) -> np.ndarray:
     """Returns blank filler audio."""
     return np.zeros(num_samples).astype(np.int16)
 
-def replace_audio_segment(audio_ndarray: np.ndarray, audio_samplerate: int, start_timestamp: str, end_timestamp: str, replacement_audio: np.ndarray) -> np.ndarray:
+def replace_audio_segment(audio_ndarray: np.ndarray, audio_samplerate: int, start_timestamp: float, end_timestamp: float, replacement_audio: np.ndarray) -> np.ndarray:
     """Takes in a numpy array of audio samples and replaces all values between the
     start and end with the provided replacement_audio."""
 
@@ -119,12 +101,11 @@ def replace_audio_segment(audio_ndarray: np.ndarray, audio_samplerate: int, star
 
     return audio_ndarray
 
-def bleep_audio_segment(audio_ndarray: np.ndarray, audio_samplerate: int, start_timestamp: str, end_timestamp: str) -> np.ndarray:
+def bleep_audio_segment(audio_ndarray: np.ndarray, audio_samplerate: int, start_timestamp: float, end_timestamp: float) -> np.ndarray:
     """Shortcut function to call without having to generate your own replacement
     signal."""
     
     num_samples = get_num_samples_from_timestamps(audio_samplerate=audio_samplerate, start_timestamp=start_timestamp, end_timestamp=end_timestamp)
-    print(f"Num samples from timestamps start {start_timestamp} end {end_timestamp} == {num_samples}")
     bleep = generate_1000hz_bleep(num_samples, sample_rate=audio_samplerate)
     return replace_audio_segment(audio_ndarray=audio_ndarray, audio_samplerate=audio_samplerate, start_timestamp=start_timestamp, end_timestamp=end_timestamp, replacement_audio=bleep)
 
@@ -143,7 +124,7 @@ def bleep_audio_segments(audio_ndarray: np.ndarray, audio_samplerate: int, segme
     segments with a 1000Hz bleep tone."""
 
     for start_timestamp, end_timestamp in segment_times:
-        print(f"start time: {start_timestamp}, end time: {end_timestamp}")
+        print(f"Censoring word starting at {start_timestamp} and ending at {end_timestamp}")
         audio_ndarray = bleep_audio_segment(audio_ndarray=audio_ndarray, audio_samplerate=audio_samplerate, start_timestamp=start_timestamp, end_timestamp=end_timestamp)
     return audio_ndarray
 
@@ -188,7 +169,7 @@ def censor_blacklisted(audio: np.ndarray, audio_samplerate: np.ndarray, blacklis
         for word_dict in segment["words"]:
             word = word_dict["word"].lower().strip()
             if word in blacklist:
-                blacklisted_segment_times.append((str(word_dict["start"]), str(word_dict["end"])))
+                blacklisted_segment_times.append((word_dict["start"], word_dict["end"]))
     
     print(f"\nBlacklisted word times: ")
     for blacklisted_time in blacklisted_segment_times:
