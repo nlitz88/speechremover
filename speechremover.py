@@ -192,7 +192,8 @@ if __name__ == "__main__":
     blacklist = ["test", "andre", "nate", "laptop", "audio"]
 
     # Open audio from a file.
-    recording_path = r"C:\Users\nlitz88\Documents\Sound recordings\test_recording.wav"
+    recording_path = r"../test_recording.wav"
+
 
     # I didn't have enough ram available on my laptop to run whisper on the
     # full-bitrate audio, so just using whisper's audio loader for now (downsamples
@@ -208,4 +209,4 @@ if __name__ == "__main__":
     censored_audio = censor_blacklisted(audio=downsampled_audio, audio_samplerate=whisper.audio.SAMPLE_RATE, blacklist=blacklist)
     censor_end = time.time()
     print(f"It took {censor_end - censor_start} to censor blacklisted words {blacklist} from the provided audio.")
-    wavio.write(r"C:\Users\nlitz88\Documents\Sound recordings\censored_test_recording.wav", censored_audio, whisper.audio.SAMPLE_RATE, sampwidth=4)
+    wavio.write(r"/mnt/fastshare/censored_test_recording.wav", censored_audio, whisper.audio.SAMPLE_RATE, sampwidth=4)
