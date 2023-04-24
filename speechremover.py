@@ -99,6 +99,25 @@ def generate_silence(num_samples: int) -> np.ndarray:
     """Returns blank filler audio."""
     return np.zeros(num_samples).astype(np.int16)
 
+def replace_audio_between(audio_ndarray: np.ndarray, start_timestamp: str, end_timestamp: str, replacement_audio: np.ndarray) -> np.ndarray:
+    """Takes in a numpy array of audio samples and replaces all values between the
+    start and end with the provided replacement_audio."""
+
+    start_index = timestamp_to_index(start_timestamp)
+    end_index = timestamp_to_index(end_timestamp)
+    replace_indices = np.arange(start=start_index, stop=end_index, step=1)
+    audio_ndarray[replace_indices] = replacement_audio
+
+    return audio_ndarray
+
+def replace_audio_with_1000hz_bleep(audio_ndarray: np.ndarray, start_timestamp: str, end_timestamp: str, sample_rate: int) -> np.ndarray:
+    """Shortcut function to call without having to generate your own replacement signal."""
+    bleep = generate_1000hz_bleep(get_num_samples_from_timestamps(start_timestamp=start_timestamp, end_timestamp=end_timestamp), sample_rate=sample_rate)
+    return replace_audio_between(audio_ndarray, start_timestamp, end_timestamp, bleep)
+
+def remove_words():
+    return
+
 if __name__ == "__main__":
     seconds, millis = convert_timestamp("32.88")
     print(f"Seconds: {seconds}, Milliseconds: {millis}")

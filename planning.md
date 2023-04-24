@@ -95,3 +95,16 @@ to be a roughly SOTA, transformer-based transcription model, and then some.
 2. Create a function that modifies the numpy entries or bytes in an audio array
    (using the above function to map words and their timestamps to array indices)
    based on a list of specified words.
+
+3. Create a function that takes in an audio ndarray, its sample rate, its sample
+   depth, and a start,end tuple with a replacement data ndarray.
+   Then, create another wrapper function that calls this iteratively on a list of
+   start, end tuples with their respective replacements.
+   Make a wrapper function for this as well that just uses a certain tone by default.
+
+4. Then, basically, needs a function that iterates through all of the words that
+   whisper spits out. If found in the blacklist, its start/stop times will be added
+   to a list of start/stop tuples.
+
+5. Then, we'll feed that list of start/stop tuples to the function that takes those
+   start/stop tuples and replaces them with a tone of some sort.
