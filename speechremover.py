@@ -1,6 +1,8 @@
 import numpy as np
 from typing import Tuple
 import whisper
+import wavio
+import time
 
 # class AudioChunk:
 
@@ -178,7 +180,22 @@ def remove_speech():
 if __name__ == "__main__":
 
     blacklist = ["test", "andre", "nate", "laptop", "audio"]
-    
 
-    seconds, millis = convert_timestamp("32.88")
-    print(f"Seconds: {seconds}, Milliseconds: {millis}")
+    # Open audio from a file.
+    recording_path = r"C:\Users\nlitz88\Documents\Sound recordings\test_recording.wav"
+
+    # I didn't have enough ram available on my laptop to run whisper on the
+    # full-bitrate audio, so just using whisper's audio loader for now (downsamples
+    # it to 16 KHz).
+    # wav = wavio.read(recording_path)
+    # original_audio = wav.data
+    # original_samplerate = wav.rate
+
+    # Only feed in 16 KHz audio file into whisper--don't need to use full rate
+    # original audio--only need to modify the original audio.
+    downsampled_audio = whisper.audio.load_audio(recording_path)
+    censor_start = time.time()
+    censored_audio = censor_blacklisted(audio=downsampled_audio, audio_samplerate=whisper.audio.SAMPLE_RATE, blacklist=blacklist)
+    censor_end = time.time()
+    print(f"It took {censor_end - censor_start} to censor blacklisted words {blacklist} from the provided audio.")
+    wavio.write(r"C:\Users\nlitz88\Documents\Sound recordings\censored_test_recording.wav", censored_audio, whisper.audio.SAMPLE_RATE, sampwidth=4)
