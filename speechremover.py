@@ -1,3 +1,4 @@
+import string
 import numpy as np
 from typing import Tuple
 import whisper
@@ -212,19 +213,22 @@ def censor_original_audio(original_audio: np.ndarray, original_audio_samplerate:
     print("Beginning transcription process on audio")
     transcribe_start = time.time()
     # First, run audio ndarray through whisper to get transcription.
-    model = whisper.load_model("tiny.en")
+    model = whisper.load_model("base.en")
     results = model.transcribe(model_audio, word_timestamps=True)
     transcribe_end = time.time()
     print(f"Transcription completed in {transcribe_end - transcribe_start}s!")
 
-    # print("Transcription results:")
-    # segments = results["segments"]
-    # for segment in segments:
-    #     print(f"ID: {segment['id']}\nStart: {segment['start']}, End: {segment['end']}\nText: {segment['text']}\nNoSpeechProb: {segment['no_speech_prob']}\n")
-    #     formatted_words = [f"\t{segment['words'][i]['word']}: Start: {segment['words'][i]['start']}, End: {segment['words'][i]['end']}" for i in range(len(segment["words"]))]
-    #     for word in formatted_words:
-    #         print(word)
-    # print()
+    print("Transcription results:")
+    segments = results["segments"]
+    for segment in segments:
+        print(f"ID: {segment['id']}\nStart: {segment['start']}, End: {segment['end']}\nText: {segment['text']}\nNoSpeechProb: {segment['no_speech_prob']}\n")
+        formatted_words = [f"\t{segment['words'][i]['word']}: Start: {segment['words'][i]['start']}, End: {segment['words'][i]['end']}" for i in range(len(segment["words"]))]
+        for word in formatted_words:
+            print(word)
+    print()
+
+    # Translator used to clean detected words for list queries
+    translator = str.maketrans('', '', string.punctuation)
 
     print("Searching for blacklisted words in transcription")
     # Parse results for blacklisted words. Append their start and end timestamps as
@@ -233,7 +237,7 @@ def censor_original_audio(original_audio: np.ndarray, original_audio_samplerate:
     segments = results["segments"]
     for segment in segments:
         for word_dict in segment["words"]:
-            word = word_dict["word"].lower().strip()
+            word = word_dict["word"].translate(translator).lower().strip()
             if word in blacklist:
                 print(f"\tFound blacklisted word \"{word}\" in audio at {word_dict['start']}-->{word_dict['end']}!")
                 blacklisted_segment_times.append((word_dict["start"], word_dict["end"]))
@@ -244,7 +248,7 @@ def censor_original_audio(original_audio: np.ndarray, original_audio_samplerate:
     censor_start = time.time()
     censored_audio = bleep_audio_segments(audio_ndarray=original_audio, audio_samplerate=original_audio_samplerate, segment_times=blacklisted_segment_times)
     censor_end = time.time()
-    print(f"Censoring complete! It took {censor_end - censor_start} to censor {len(blacklisted_segment_times)} blacklisted words from the provided audio.")
+    print(f"Censoring complete! It took {censor_end - censor_start}s to censor {len(blacklisted_segment_times)} blacklisted words from the provided audio.")
 
     return censored_audio
 
@@ -256,27 +260,29 @@ def remove_speech():
 
 if __name__ == "__main__":
     
-    blacklist = ["test", "andre", "laptop", "audio"]
-    # blacklist_filepath = r"./badwords.txt"
-    # # Load blacklist from file, one phrase/word per line.
-    # with open(blacklist_filepath, "r") as blf:
-    #     for line in blf:
-    #         blacklist.append(line.strip())
+    blacklist = []
+    blacklist_filepath = r"./badwords.txt"
+    # Load blacklist from file, one phrase/word per line.
+    with open(blacklist_filepath, "r") as blf:
+        for line in blf:
+            blacklist.append(line.strip())
 
     # Open audio from a file.
-    recording_path = r"./samples/test_recording.wav"
-    output_path = r"./samples/test_recording_censored.wav"
+    recording_path = r"./samples/recording4.wav"
+    output_path = r"./samples/recording4_censored.wav"
 
     # Load the original audio as numpy array.
     wav = wavio.read(recording_path)
     original_samplerate = whisper.audio.SAMPLE_RATE
-    original_depth = wav.sampwidth
+    # original_depth = wav.sampwidth
     original_audio = whisper.load_audio(recording_path)
     
     # Only feed in 16 KHz audio file into whisper--don't need to use full rate
     # original audio--only need to modify the original audio.
-    downsampled_audio = whisper.audio.load_audio(recording_path)
-    downsampled_samplerate = whisper.audio.SAMPLE_RATE
+    # downsampled_audio = whisper.audio.load_audio(recording_path)
+    # downsampled_samplerate = whisper.audio.SAMPLE_RATE
+    downsampled_audio = original_audio
+    downsampled_samplerate = original_samplerate
     
     # Begin censoring process
     censored_audio = censor_original_audio(original_audio=original_audio, original_audio_samplerate=original_samplerate,
