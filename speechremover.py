@@ -109,9 +109,6 @@ def bleep_audio_segment(audio_ndarray: np.ndarray, audio_samplerate: int, start_
     num_samples = get_num_samples_from_timestamps(audio_samplerate=audio_samplerate, start_timestamp=start_timestamp, end_timestamp=end_timestamp)
     if num_samples == 0:
         return audio_ndarray
-    # Add some padding to the bleep.
-    end_timestamp += 0.03
-    num_samples += int(audio_samplerate*0.03)
     bleep = generate_1000hz_bleep(num_samples, sample_rate=audio_samplerate)
     return replace_audio_segment(audio_ndarray=audio_ndarray, audio_samplerate=audio_samplerate, start_timestamp=start_timestamp, end_timestamp=end_timestamp, replacement_audio=bleep)
 
@@ -271,8 +268,8 @@ if __name__ == "__main__":
             blacklist.append(line.strip())
 
     # Open audio from a file.
-    recording_path = r"./samples/recording4.wav"
-    output_path = r"./samples/recording4_censored.wav"
+    recording_path = r"./samples/recording.wav"
+    output_path = r"./samples/recording_censored.wav"
 
     # Load the original audio as numpy array.
     wav = wavio.read(recording_path)
