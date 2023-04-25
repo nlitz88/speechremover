@@ -109,9 +109,13 @@ to be a roughly SOTA, transformer-based transcription model, and then some.
 5. Then, we'll feed that list of start/stop tuples to the function that takes those
    start/stop tuples and replaces them with a tone of some sort.
 
+
 # Realtime Todo
 
 1.  Now that it's working on chunks of audio (maintained as numpy ndarrays), this can be used in realtime locally
     using some sort of multithreading.
 2. Long term, I'd like to implement this to run as a UDP server and just send the data via stream sockets. Client
    sends data over, server censors the audio and then sends it back to client to be used.
+
+Rename to something like "censorme" or "deepcensor" or "bleep" or something  along
+those lines.

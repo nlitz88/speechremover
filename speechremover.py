@@ -106,6 +106,8 @@ def bleep_audio_segment(audio_ndarray: np.ndarray, audio_samplerate: int, start_
     signal."""
     
     num_samples = get_num_samples_from_timestamps(audio_samplerate=audio_samplerate, start_timestamp=start_timestamp, end_timestamp=end_timestamp)
+    if num_samples == 0:
+        return audio_ndarray
     bleep = generate_1000hz_bleep(num_samples, sample_rate=audio_samplerate)
     return replace_audio_segment(audio_ndarray=audio_ndarray, audio_samplerate=audio_samplerate, start_timestamp=start_timestamp, end_timestamp=end_timestamp, replacement_audio=bleep)
 
@@ -182,31 +184,103 @@ def censor_blacklisted(audio: np.ndarray, audio_samplerate: np.ndarray, blacklis
     print()
     return audio
 
+def censor_original_audio(original_audio: np.ndarray, original_audio_samplerate: int, model_audio: np.ndarray, model_audio_samplerate: int,
+                          blacklist: list):
+    """Function that bleeps out portions of the original_audio based on blacklisted
+    words transcribed from the provided model_audio.
+    
+    Parameters
+    ----------
+    original_audio: np.ndarray
+        Your original quality audio provided as a numpy ndarray.
+    original_audio_samplerate:
+        The sample rate of the original audio.
+    model_audio:
+        The potentially downsampled, lower quality audio that will be used to feed
+        the transcription model.
+    model_audio_samplerate:
+        The sample rate of the downsampled model audio.
+    blacklist: List(str)
+        List of words that should be censored/removed/replaced in the audio.
+    
+    Returns
+    ----------
+    An ndarray of the ORIGINAL audio with regions corresponding to blacklisted words
+    "bleeped out."
+    """
+
+    print("Beginning transcription process on audio")
+    transcribe_start = time.time()
+    # First, run audio ndarray through whisper to get transcription.
+    model = whisper.load_model("tiny.en")
+    results = model.transcribe(model_audio, word_timestamps=True)
+    transcribe_end = time.time()
+    print(f"Transcription completed in {transcribe_end - transcribe_start}s!")
+
+    # print("Transcription results:")
+    # segments = results["segments"]
+    # for segment in segments:
+    #     print(f"ID: {segment['id']}\nStart: {segment['start']}, End: {segment['end']}\nText: {segment['text']}\nNoSpeechProb: {segment['no_speech_prob']}\n")
+    #     formatted_words = [f"\t{segment['words'][i]['word']}: Start: {segment['words'][i]['start']}, End: {segment['words'][i]['end']}" for i in range(len(segment["words"]))]
+    #     for word in formatted_words:
+    #         print(word)
+    # print()
+
+    print("Searching for blacklisted words in transcription")
+    # Parse results for blacklisted words. Append their start and end timestamps as
+    # tuples as you find them.
+    blacklisted_segment_times = []
+    segments = results["segments"]
+    for segment in segments:
+        for word_dict in segment["words"]:
+            word = word_dict["word"].lower().strip()
+            if word in blacklist:
+                print(f"\tFound blacklisted word \"{word}\" in audio at {word_dict['start']}-->{word_dict['end']}!")
+                blacklisted_segment_times.append((word_dict["start"], word_dict["end"]))
+    print()
+
+    # Now, pass that list onto another function to remove it from the original audio.
+    print("Censoring words in audio")
+    censor_start = time.time()
+    censored_audio = bleep_audio_segments(audio_ndarray=original_audio, audio_samplerate=original_audio_samplerate, segment_times=blacklisted_segment_times)
+    censor_end = time.time()
+    print(f"Censoring complete! It took {censor_end - censor_start} to censor {len(blacklisted_segment_times)} blacklisted words from the provided audio.")
+
+    return censored_audio
+
+
 def remove_speech():
     """More general function that looks for segments from whisper that are classified
     as speech and mutes the entire audio sequence during those times."""
     pass
 
 if __name__ == "__main__":
-
-    blacklist = ["test", "andre", "nate", "laptop", "audio"]
+    
+    blacklist = ["test", "andre", "laptop", "audio"]
+    # blacklist_filepath = r"./badwords.txt"
+    # # Load blacklist from file, one phrase/word per line.
+    # with open(blacklist_filepath, "r") as blf:
+    #     for line in blf:
+    #         blacklist.append(line.strip())
 
     # Open audio from a file.
-    recording_path = r"../test_recording.wav"
+    recording_path = r"./samples/test_recording.wav"
+    output_path = r"./samples/test_recording_censored.wav"
 
-
-    # I didn't have enough ram available on my laptop to run whisper on the
-    # full-bitrate audio, so just using whisper's audio loader for now (downsamples
-    # it to 16 KHz).
-    # wav = wavio.read(recording_path)
-    # original_audio = wav.data
-    # original_samplerate = wav.rate
-
+    # Load the original audio as numpy array.
+    wav = wavio.read(recording_path)
+    original_samplerate = whisper.audio.SAMPLE_RATE
+    original_depth = wav.sampwidth
+    original_audio = whisper.load_audio(recording_path)
+    
     # Only feed in 16 KHz audio file into whisper--don't need to use full rate
     # original audio--only need to modify the original audio.
     downsampled_audio = whisper.audio.load_audio(recording_path)
-    censor_start = time.time()
-    censored_audio = censor_blacklisted(audio=downsampled_audio, audio_samplerate=whisper.audio.SAMPLE_RATE, blacklist=blacklist)
-    censor_end = time.time()
-    print(f"It took {censor_end - censor_start} to censor blacklisted words {blacklist} from the provided audio.")
-    wavio.write(r"/mnt/fastshare/censored_test_recording.wav", censored_audio, whisper.audio.SAMPLE_RATE, sampwidth=4)
+    downsampled_samplerate = whisper.audio.SAMPLE_RATE
+    
+    # Begin censoring process
+    censored_audio = censor_original_audio(original_audio=original_audio, original_audio_samplerate=original_samplerate,
+                                           model_audio=downsampled_audio, model_audio_samplerate=downsampled_samplerate,
+                                           blacklist=blacklist)
+
+    wavio.write(output_path, censored_audio, original_samplerate, sampwidth=4)
